@@ -1,0 +1,79 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Xcode build configuration
+        type: choice
+        options:
+          - Release
+          - Debug
+        default: Release
+      deployment_target:
+        description: IPHONEOS_DEPLOYMENT_TARGET (lower it if the runner lacks the iOS 26 SDK)
+        type: string
+        default: "26.0"
+  push:
+    branches: [main]
+    paths:
+      - "LiquidNotes/**"
+      - "LiquidNotes.xcodeproj/**"
+      - "scripts/**"
+      - ".github/workflows/build.yaml"
+  pull_request:
+    paths:
+      - "LiquidNotes/**"
+      - "LiquidNotes.xcodeproj/**"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Archive & package
+    # macos-15 can host Xcode 26. If a macos-26 runner is available to you,
+    # switch the label below. The iOS 26 SDK is selected via setup-xcode.
+    runs-on: macos-15
+    env:
+      SCHEME: LiquidNotes
+      CONFIG: ${{ github.event.inputs.configuration || 'Release' }}
+      IPHONEOS_DEPLOYMENT_TARGET: ${{ github.event.inputs.deployment_target || '26.0' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # Use "latest" if you need a beta that ships the newest SDK.
+          xcode-version: latest-stable
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Build unsigned IPA
+        run: |
+          chmod +x scripts/build_unsigned_ipa.sh
+          scripts/build_unsigned_ipa.sh "$SCHEME" "$CONFIG"
+
+      - name: Show archive contents
+        if: always()
+        run: |
+          ls -la build || true
+          unzip -l build/*-unsigned.ipa || true
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SCHEME }}-unsigned-${{ github.run_number }}
+          path: build/*-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
