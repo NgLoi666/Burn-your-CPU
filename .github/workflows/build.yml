@@ -61,8 +61,8 @@ jobs:
 
       - name: Build unsigned IPA
         run: |
-          chmod +x scripts/build_unsigned_ipa.sh
-          scripts/build_unsigned_ipa.sh "$SCHEME" "$CONFIG"
+          chmod +x ./scripts/build_unsigned_ipa.sh
+          ./scripts/build_unsigned_ipa.sh "$SCHEME" "$CONFIG"
 
       - name: Show archive contents
         if: always()
